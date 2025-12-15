@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yuma Yamada</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Yuma Yamada</h1>
+            <nav>
+                <a href="#home">Home</a>
+                <a href="#music">Music</a>
+                <a href="#about">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section id="home" class="content-section">
+            <h2>最新記事</h2>
+            <div class="post-list" id="postList">
+                <!-- 投稿はJavaScriptで動的に追加されます -->
+            </div>
+        </section>
+
+        <section id="music" class="content-section" style="display: none;">
+            <h2>Music</h2>
+            <div class="post-list" id="musicList">
+                <!-- MusicはJavaScriptで動的に追加されます -->
+            </div>
+        </section>
+
+        <section id="about" class="content-section" style="display: none;">
+            <h2>About</h2>
+            <div class="about-content">
+                <p>東京都在住。日記と作った楽曲をアーカイブします。</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Yuma Yamada</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
