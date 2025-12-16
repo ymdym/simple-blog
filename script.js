@@ -338,3 +338,171 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+// ------------------------
+// Webカメラ背景（モノクロ・ローファイ・コマ送り）
+// ------------------------
+(function(){
+    const video = document.getElementById('webcamVideo');
+    const canvas = document.getElementById('bgCanvas');
+    const btn = document.getElementById('enableCam');
+    if (!canvas || !video || !btn) return;
+
+    const ctx = canvas.getContext('2d');
+    const off = document.createElement('canvas');
+    const offCtx = off.getContext('2d');
+
+    let frames = [];
+    const maxFrames = 3; // 少なめのコマ数（紙芝居風）
+    const captureInterval = 300; // ms
+    const displayFps = 4; // 表示間隔
+    let captureTimer = null;
+    let drawTimer = null;
+    let isCameraOn = false;
+    let currentStream = null;
+
+    function resizeCanvases() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        off.width = Math.max(160, Math.floor(window.innerWidth / 6));
+        off.height = Math.max(120, Math.floor(window.innerHeight / 6));
+    }
+
+    function applyLoFi(imageData) {
+        const data = imageData.data;
+        const levels = 4; // 階調数を少なくしてローファイ
+        const factor = 255 / (levels - 1);
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i+1], b = data[i+2];
+            const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            let q = Math.round(lum / factor) * factor;
+            const noise = (Math.random() - 0.5) * 18; // ノイズ幅
+            q = Math.min(255, Math.max(0, q + noise));
+            data[i] = data[i+1] = data[i+2] = q;
+        }
+        return imageData;
+    }
+
+    async function captureFrame() {
+        if (video.readyState < 2) return;
+        offCtx.drawImage(video, 0, 0, off.width, off.height);
+        let img = offCtx.getImageData(0,0, off.width, off.height);
+        img = applyLoFi(img);
+        offCtx.putImageData(img, 0, 0);
+
+        // スキャンラインを薄く入れる
+        offCtx.fillStyle = 'rgba(0,0,0,0.04)';
+        for (let y = 0; y < off.height; y += 2) {
+            offCtx.fillRect(0, y, off.width, 1);
+        }
+
+        const dataUrl = off.toDataURL('image/jpeg', 0.6);
+        const imgObj = new Image();
+        imgObj.src = dataUrl;
+        imgObj.onload = () => {
+            frames.push(imgObj);
+            if (frames.length > maxFrames) frames.shift();
+        };
+    }
+
+    function drawFrame() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        if (frames.length === 0) {
+            // カメラ未使用時は薄いノイズ感を描画
+            ctx.fillStyle = 'rgba(0,0,0,0.04)';
+            ctx.fillRect(0,0,canvas.width, canvas.height);
+            return;
+        }
+
+        // 常に最新のフレームを表示
+        const img = frames[frames.length - 1];
+        const aspect = img.width / img.height;
+        const canvasAspect = canvas.width / canvas.height;
+        let dw = canvas.width, dh = canvas.height;
+        if (aspect > canvasAspect) {
+            dh = canvas.height;
+            dw = dh * aspect;
+        } else {
+            dw = canvas.width;
+            dh = dw / aspect;
+        }
+        const dx = (canvas.width - dw) / 2;
+        const dy = (canvas.height - dh) / 2;
+        ctx.drawImage(img, dx, dy, dw, dh);
+
+        // 軽いビネットで落ち着かせる
+        const g = ctx.createLinearGradient(0,0,0,canvas.height);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,0.08)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+    }
+
+    function startCaptureLoop() {
+        if (captureTimer) return;
+        captureTimer = setInterval(captureFrame, captureInterval);
+        if (drawTimer) clearInterval(drawTimer);
+        drawTimer = setInterval(drawFrame, 1000 / displayFps);
+    }
+
+    function stopCaptureLoop() {
+        if (captureTimer) { clearInterval(captureTimer); captureTimer = null; }
+        if (drawTimer) { clearInterval(drawTimer); drawTimer = null; }
+    }
+
+    function stopCamera() {
+        stopCaptureLoop();
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        video.srcObject = null;
+        frames = [];
+        isCameraOn = false;
+        btn.textContent = 'camera on';
+        // キャンバスをクリア
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(0,0,0,0.04)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            currentStream = stream;
+            video.srcObject = stream;
+            await video.play();
+            startCaptureLoop();
+            isCameraOn = true;
+            btn.textContent = 'camera off';
+        } catch (err) {
+            console.warn('カメラアクセスが得られませんでした:', err);
+            btn.textContent = 'カメラ許可を確認してください';
+            // フォールバック: 絵画的なノイズループ
+            if (!drawTimer) {
+                drawTimer = setInterval(() => {
+                    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+                    ctx.fillRect(0,0,canvas.width, canvas.height);
+                    for (let i = 0; i < 100; i++) {
+                        ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.02})`;
+                        ctx.fillRect(Math.random()*canvas.width, Math.random()*canvas.height, Math.random()*6, Math.random()*3);
+                    }
+                }, 250);
+            }
+        }
+    }
+
+    function toggleCamera() {
+        if (isCameraOn) {
+            stopCamera();
+        } else {
+            startCamera();
+        }
+    }
+
+    btn.addEventListener('click', () => toggleCamera());
+    window.addEventListener('resize', resizeCanvases);
+
+    // 初期化
+    resizeCanvases();
+})();
+

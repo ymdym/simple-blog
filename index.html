@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <canvas id="bgCanvas" aria-hidden="true"></canvas>
+    <video id="webcamVideo" autoplay playsinline muted style="display:none"></video>
+
+    <div class="site">
     <header>
         <div class="header-content">
             <h1>Yuma Yamada</h1>
@@ -42,8 +46,11 @@
     </main>
 
     <footer>
+        <button id="enableCam">camera on</button>
         <p>&copy; 2025 Yuma Yamada</p>
     </footer>
+
+    </div>
 
     <script src="script.js"></script>
 </body>
